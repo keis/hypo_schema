@@ -1,8 +1,8 @@
-from random import randint
-
 from hypothesis import strategies as hs
 
 from hyposchema.regex import regex
+
+EXCLUDE = object()
 
 
 def gen_int(prop):
@@ -25,13 +25,6 @@ def gen_string(prop):
         return hs.text(alphabet=pattern,
                        min_size=min_value,
                        max_size=max_value)
-
-
-def should_include(key, required_list):
-    if key in required_list:
-        return True
-    else:
-        return bool(randint(0, 1))
 
 
 def gen_array(prop):
@@ -59,6 +52,11 @@ def gen_any_obj():
                         lambda children: hs.dictionaries(hs.text(), children),
                         max_leaves=10)
 
+
+def gen_maybe(value):
+    return hs.one_of(value, hs.just(EXCLUDE))
+
+
 def gen_object(prop):
 
     required = prop.get("required", [])
@@ -72,11 +70,11 @@ def gen_object(prop):
 
     for k in prop[prop_key].keys():
         json_prop = prop[prop_key][k]
+        gen = get_generator(json_prop)
+        output[k] = gen if k in required else gen_maybe(gen)
 
-        if should_include(k, required):
-            output[k] = get_generator(json_prop)
-
-    return hs.fixed_dictionaries(output)
+    return hs.fixed_dictionaries(output).map(
+        lambda m: {k: v for k, v in m.items() if v is not EXCLUDE})
 
 
 def gen_enum(prop):
